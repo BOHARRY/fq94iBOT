@@ -46,9 +46,9 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
 
 # 下載並安裝對應版本的 ChromeDriver
 # 我們不再使用 webdriver-manager，而是在構建時就固定下來
-# 使用更穩定的多階段指令，避免 "Argument list too long" 錯誤
-RUN LATEST_STABLE=$(wget -q -O - https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json | grep -oP '"stable": "\K[^"]+') \
-    && wget -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${LATEST_STABLE}/linux64/chromedriver-linux64.zip" \
+# 為了穩定性，我們直接指定一個已知的穩定版本，而不是動態獲取
+RUN CHROMEDRIVER_VERSION="114.0.5735.90" \
+    && wget -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
     && unzip /tmp/chromedriver.zip -d /opt/ \
     && mv /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver \
     && rm -rf /opt/chromedriver-linux64 /tmp/chromedriver.zip
