@@ -3,6 +3,7 @@
 import os
 import logging
 import json
+import threading
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -163,7 +164,10 @@ def handle_message(event):
 
     # 獲取 AI 回應
     ai_response = get_ai_response(user_id, history)
-    reply_text = "抱歉，AI 沒有提供回應，請稍後再試。" # 預設回覆
+    
+    # 預設回覆
+    reply_text = "抱歉，AI 沒有提供回應，請稍後再試。"
+    assistant_history_content = reply_text
 
     if ai_response:
         # 檢查是否為工具呼叫
@@ -175,20 +179,29 @@ def handle_message(event):
                 content = params.get("content")
                 if title and content:
                     logging.info(f"觸發工具呼叫：execute_post_article, 標題: {title}")
-                    # 在背景執行爬蟲 (為了快速回應，這裡用簡單的 print 模擬，實際部署建議用 Celery)
-                    execute_scraper(user_id, title, content)
-                    # 回覆一個確認訊息
+                    # 使用背景執行緒來運行耗時的爬蟲任務，避免阻塞主執行緒
+                    scraper_thread = threading.Thread(
+                        target=execute_scraper,
+                        args=(user_id, title, content)
+                    )
+                    scraper_thread.start()
+                    # 立即回覆確認訊息
                     reply_text = "好的，已收到最終確認！我現在就去幫您發布文章，完成後會通知您。🚀"
+                    # 儲存到歷史的是 AI 的原始 JSON 回應，以便追蹤
+                    assistant_history_content = ai_response
                 else:
                     reply_text = "AI 決定呼叫工具，但缺少必要的標題或內容。"
+                    assistant_history_content = reply_text
                     logging.error(reply_text)
             else:
                 reply_text = ai_response # 如果是 JSON 但不是工具呼叫，直接回覆
+                assistant_history_content = ai_response
         except json.JSONDecodeError:
             reply_text = ai_response # 如果不是 JSON，直接回覆
+            assistant_history_content = ai_response
 
     # 更新對話歷史並儲存
-    history[user_id].append({"role": "assistant", "content": reply_text})
+    history[user_id].append({"role": "assistant", "content": assistant_history_content})
     save_history(history)
 
     # 回覆訊息給使用者
