@@ -104,7 +104,7 @@ def get_ai_response(user_id, history):
                 messages.append(assistant_message)
 
     response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4.1-nano",
         messages=messages,
         temperature=0.7,
     )
