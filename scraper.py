@@ -152,17 +152,29 @@ class SeleniumScraper:
             news_link.click()
             logging.info("   ✅ 已點擊 '最新消息'。")
 
-            # 新增步驟 1.5: 等待文章列表完全加載
+            # 新增步驟 1.5: 等待文章列表完全加載 (包含重試機制)
             logging.info("1.5. 等待文章列表加載完成...")
-            try:
-                self.wait.until(
-                    EC.presence_of_element_located(config.ARTICLE_LIST_TABLE_ROW)
-                )
-                logging.info("   ✅ 文章列表已加載。")
-                logging.info("   ⏳ 根據要求，強制等待 5 秒以確保所有組件穩定...")
-                time.sleep(5)
-            except TimeoutException:
-                logging.warning("   ⚠️ 警告：未檢測到文章列表，但仍將繼續嘗試。可能是頁面沒有文章。")
+            list_loaded = False
+            for i in range(3): # 最多重試 3 次
+                try:
+                    self.wait.until(
+                        EC.presence_of_element_located(config.ARTICLE_LIST_TABLE_ROW)
+                    )
+                    logging.info(f"   ✅ 文章列表已加載 (嘗試 #{i+1})。")
+                    list_loaded = True
+                    break # 成功後跳出迴圈
+                except TimeoutException:
+                    logging.warning(f"   ⚠️ 警告：未檢測到文章列表 (嘗試 #{i+1}/3)，正在刷新頁面重試...")
+                    self.driver.refresh()
+                    time.sleep(3) # 刷新後等待
+            
+            if not list_loaded:
+                logging.error("   ❌ 錯誤：刷新重試多次後，仍無法加載文章列表。")
+                self.screenshot_full_page("list_load_error.png")
+                return False
+
+            logging.info("   ⏳ 強制等待 5 秒以確保所有組件穩定...")
+            time.sleep(5)
 
             # 步驟 2: 直接導航至文章編輯頁面
             logging.info("2. 正在獲取目標 URL 並直接導航至文章編輯頁面...")
