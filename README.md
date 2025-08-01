@@ -80,29 +80,27 @@
     python run.py
     ```
 
-### 方案二：透過 LINE Bot 執行 (推薦)
+### 方案二：透過 LINE Bot 執行 (雲端部署 - 推薦)
 
-1.  **安裝額外套件**:
-    ```bash
-    pip install flask line-bot-sdk
-    ```
-2.  **設定金鑰**:
+本專案已成功部署至 [Render.com](https://render.com/)，實現了 24/7 全自動在線服務。
+
+1.  **Fork & Clone**: 將此專案的 GitHub 儲存庫 Fork 到您自己的帳號下，並 Clone 到本地。
+2.  **建立 LINE Bot**:
     *   前往 [LINE Developers](https://developers.line.biz/zh-hant/) 建立一個 `Messaging API` Channel。
-    *   將 `Channel Secret` 和 `Channel Access Token` 填入 `config.py` 中對應的欄位。
-3.  **啟動本地伺服器**:
-    ```bash
-    python line_bot_server.py
-    ```
-4.  **建立公網通道**:
-    *   前往 [ngrok](https://ngrok.com/) 註冊免費帳號並設定 `authtoken`。
-    *   在**另一個**終端機中執行以下指令，以建立通往本地伺服器的隧道：
-        ```bash
-        ngrok http 5001
-        ```
-5.  **設定 Webhook**:
-    *   複製 `ngrok` 提供的 `https://` 開頭的網址。
-    *   將網址加上 `/callback` (例如 `https://xxxxxxxx.ngrok-free.app/callback`)，填入 LINE Developers 後台的 `Webhook URL` 中，並啟用 Webhook。
-6.  **開始使用**:
+3.  **部署到 Render.com**:
+    *   登入 Render Dashboard，建立一個新的 "Web Service"，並連結到您 Fork 的 GitHub 儲存庫。
+    *   在設定中，**Runtime** 選擇 **`Docker`**。Render 會自動找到專案中的 `Dockerfile`。
+    *   在 **Environment Variables** 中，設定以下所有必要的金鑰：
+        *   `USERNAME`: 網站登入帳號
+        *   `PASSWORD`: 網站登入密碼
+        *   `OPENAI_API_KEY`: 您的 OpenAI 金鑰
+        *   `LINE_CHANNEL_SECRET`: 您的 LINE Channel Secret
+        *   `LINE_CHANNEL_ACCESS_TOKEN`: 您的 LINE Channel Access Token
+        *   `PYTHON_VERSION`: `3.11`
+4.  **設定 Webhook**:
+    *   部署成功後，Render 會提供一個永久的 `.onrender.com` 網址。
+    *   將此網址加上 `/callback` (例如 `https://your-app.onrender.com/callback`)，填入 LINE Developers 後台的 `Webhook URL` 中，並啟用 Webhook。
+5.  **開始使用**:
     *   將您的 LINE Bot 加入好友。
     *   傳送符合格式的訊息即可自動發文：
         `發文 標題：[您的標題] 內容：[您的內容]`

@@ -1,6 +1,7 @@
 # line_bot_server.py
 
 import os
+import logging
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -20,13 +21,16 @@ from scraper import SeleniumScraper
 # --- 初始化 ---
 app = Flask(__name__)
 
+# 設定日誌
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
 # LINE Bot 設定
 # 在雲端環境中，這些值會從環境變數讀取
 # 在本地測試時，如果 config.py 中沒有填寫，則會觸發錯誤
 if not config.LINE_CHANNEL_ACCESS_TOKEN or "YOUR_CHANNEL_ACCESS_TOKEN" in config.LINE_CHANNEL_ACCESS_TOKEN:
-    app.logger.warning("LINE_CHANNEL_ACCESS_TOKEN 未設定或為預設值。")
+    logging.warning("LINE_CHANNEL_ACCESS_TOKEN 未設定或為預設值。")
 if not config.LINE_CHANNEL_SECRET:
-    app.logger.warning("LINE_CHANNEL_SECRET 未設定。")
+    logging.warning("LINE_CHANNEL_SECRET 未設定。")
 
 configuration = Configuration(access_token=config.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(config.LINE_CHANNEL_SECRET)
@@ -39,13 +43,13 @@ def callback():
 
     # 獲取請求主體為文字
     body = request.get_data(as_text=True)
-    app.logger.info("Request body: " + body)
+    logging.info("Request body: " + body)
 
     # 處理 webhook 主體
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
-        app.logger.info("Invalid signature. Please check your channel access token/channel secret.")
+        logging.error("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
 
     return 'OK'
@@ -98,13 +102,14 @@ def handle_message(event):
             # 注意：因為 reply_token 只能使用一次，我們需要用 Push API 來傳送最終結果
             # 這裡為了簡化，我們暫時只在控制台打印結果。
             # 若要推送，需要用戶的 User ID (event.source.user_id) 和 PushMessage API。
-            print("="*50)
-            print(f"最終執行結果: {result_message}")
-            print("="*50)
+            logging.info("="*50)
+            logging.info(f"最終執行結果: {result_message}")
+            logging.info("="*50)
 
 
         except (IndexError, ValueError) as e:
             reply_text = f"指令格式錯誤！\n請使用以下格式：\n發文 標題：[您的標題] 內容：[您的內容]\n\n錯誤詳情: {e}"
+            logging.error(f"指令解析錯誤: {e}", exc_info=True)
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.reply_message(
