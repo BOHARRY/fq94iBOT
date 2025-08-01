@@ -19,7 +19,7 @@ OPENAI_MODELS_TO_TRY = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]
 
 # --- 爬蟲行為設定 ---
 MAX_LOGIN_RETRIES = 5
-BROWSER_HEADLESS = False
+BROWSER_HEADLESS = True # 在雲端環境中，必須使用無頭模式
 DEFAULT_WAIT_TIMEOUT = 15  # 增加預設等待時間以應對較慢的加載
 PAGE_LOAD_TIMEOUT = 15
 RETRY_DELAY_BASE = 2
