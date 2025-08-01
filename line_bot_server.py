@@ -3,6 +3,7 @@
 import os
 import logging
 import json
+import threading
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -16,7 +17,11 @@ from linebot.v3.messaging import (
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from openai import OpenAI
-from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import (
+    ChatCompletionMessageParam,
+    ChatCompletionUserMessageParam,
+    ChatCompletionAssistantMessageParam,
+)
 
 # 導入我們的設定和爬蟲
 import config
@@ -83,11 +88,19 @@ def get_ai_response(user_id, history):
     messages: list[ChatCompletionMessageParam] = [{"role": "system", "content": system_prompt}]
     user_history = history.get(user_id, [])
     
-    # 確保歷史紀錄中的每一項都是正確的格式
+    # 確保歷史紀錄中的每一項都是正確的格式，並符合型別定義
     for item in user_history:
         if isinstance(item, dict) and "role" in item and "content" in item:
-            # 進行型別轉換
-            messages.append(item) # type: ignore
+            role = item["role"]
+            content = item["content"]
+            if role == "user":
+                # 明確建立一個 ChatCompletionUserMessageParam
+                user_message: ChatCompletionUserMessageParam = {"role": "user", "content": content}
+                messages.append(user_message)
+            elif role == "assistant":
+                # 明確建立一個 ChatCompletionAssistantMessageParam
+                assistant_message: ChatCompletionAssistantMessageParam = {"role": "assistant", "content": content}
+                messages.append(assistant_message)
 
     response = openai_client.chat.completions.create(
         model="gpt-4o-mini",
@@ -103,7 +116,18 @@ def execute_scraper(user_id, title, content):
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 line_bot_api.push_message(
-                    PushMessageRequest(to=user_id, messages=[TextMessage(text=message_text)])
+                    PushMessageRequest(
+                        to=user_id,
+                        messages=[
+                            TextMessage(
+                                text=message_text,
+                                quickReply=None,
+                                quoteToken=None
+                            )
+                        ],
+                        notificationDisabled=False,
+                        customAggregationUnits='bot'
+                    )
                 )
         except Exception as e:
             logging.error(f"發送 Push Message 失敗: {e}", exc_info=True)
@@ -178,27 +202,16 @@ def handle_message(event):
                 content = params.get("content")
                 if title and content:
                     logging.info(f"觸發工具呼叫：execute_post_article, 標題: {title}")
-                    
-                    # 立即回覆確認訊息，以避免 LINE Webhook 超時
+                    # 使用背景執行緒來運行耗時的爬蟲任務，避免阻塞主執行緒
+                    scraper_thread = threading.Thread(
+                        target=execute_scraper,
+                        args=(user_id, title, content)
+                    )
+                    scraper_thread.start()
+                    # 立即回覆確認訊息
                     reply_text = "好的，已收到最終確認！我現在就去幫您發布文章，完成後會通知您。🚀"
-                    with ApiClient(configuration) as api_client:
-                        line_bot_api = MessagingApi(api_client)
-                        line_bot_api.reply_message(
-                            ReplyMessageRequest(
-                                reply_token=event.reply_token,
-                                messages=[TextMessage(text=reply_text)]
-                            )
-                        )
-                    
-                    # 同步執行耗時的爬蟲任務
-                    execute_scraper(user_id, title, content)
-                    
-                    # 儲存到歷史的是 AI 的原始 JSON 回應
+                    # 儲存到歷史的是 AI 的原始 JSON 回應，以便追蹤
                     assistant_history_content = ai_response
-                    history[user_id].append({"role": "assistant", "content": assistant_history_content})
-                    save_history(history)
-                    return # 執行完畢後，直接結束函式
-
                 else:
                     reply_text = "AI 決定呼叫工具，但缺少必要的標題或內容。"
                     assistant_history_content = reply_text
@@ -214,13 +227,20 @@ def handle_message(event):
     history[user_id].append({"role": "assistant", "content": assistant_history_content})
     save_history(history)
 
-    # 回覆訊息給使用者 (僅在非工具呼叫時執行)
+    # 回覆訊息給使用者
     with ApiClient(configuration) as api_client:
         line_bot_api = MessagingApi(api_client)
         line_bot_api.reply_message(
             ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=reply_text)]
+                replyToken=event.reply_token,
+                messages=[
+                    TextMessage(
+                        text=reply_text,
+                        quickReply=None,
+                        quoteToken=None
+                    )
+                ],
+                notificationDisabled=False
             )
         )
 
