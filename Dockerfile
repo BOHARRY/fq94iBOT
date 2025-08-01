@@ -7,11 +7,13 @@ WORKDIR /app
 # 更新套件列表並安裝必要的系統依賴
 # wget 和 unzip 用於下載和解壓縮 ChromeDriver
 # libarchive-tools 提供了 bsdtar 工具
+# grep 用於解析版本號
 # gnupg, libglib2.0-0, etc. 是 Google Chrome 運行的必要依賴
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
     libarchive-tools \
+    grep \
     gnupg \
     libglib2.0-0 \
     libnss3 \
