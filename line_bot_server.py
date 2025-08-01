@@ -3,6 +3,7 @@
 import os
 import logging
 import json
+import re
 import threading
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
@@ -193,34 +194,41 @@ def handle_message(event):
     assistant_history_content = reply_text
 
     if ai_response:
-        # 檢查是否為工具呼叫
-        try:
-            response_json = json.loads(ai_response)
-            if response_json.get("tool_call") == "execute_post_article":
-                params = response_json.get("parameters", {})
-                title = params.get("title")
-                content = params.get("content")
-                if title and content:
-                    logging.info(f"觸發工具呼叫：execute_post_article, 標題: {title}")
-                    # 使用背景執行緒來運行耗時的爬蟲任務，避免阻塞主執行緒
-                    scraper_thread = threading.Thread(
-                        target=execute_scraper,
-                        args=(user_id, title, content)
-                    )
-                    scraper_thread.start()
-                    # 立即回覆確認訊息
-                    reply_text = "好的，已收到最終確認！我現在就去幫您發布文章，完成後會通知您。🚀"
-                    # 儲存到歷史的是 AI 的原始 JSON 回應，以便追蹤
-                    assistant_history_content = ai_response
+        # 使用正則表達式從 AI 回應中提取純淨的 JSON
+        json_match = re.search(r"```json\s*({.*?})\s*```", ai_response, re.DOTALL)
+        
+        if json_match:
+            json_string = json_match.group(1)
+            try:
+                response_json = json.loads(json_string)
+                if response_json.get("tool_call") == "execute_post_article":
+                    params = response_json.get("parameters", {})
+                    title = params.get("title")
+                    content = params.get("content")
+                    if title and content:
+                        logging.info(f"觸發工具呼叫：execute_post_article, 標題: {title}")
+                        scraper_thread = threading.Thread(
+                            target=execute_scraper,
+                            args=(user_id, title, content)
+                        )
+                        scraper_thread.start()
+                        reply_text = "好的，已收到最終確認！我現在就去幫您發布文章，完成後會通知您。🚀"
+                        assistant_history_content = ai_response
+                    else:
+                        reply_text = "AI 決定呼叫工具，但缺少必要的標題或內容。"
+                        assistant_history_content = reply_text
+                        logging.error(reply_text)
                 else:
-                    reply_text = "AI 決定呼叫工具，但缺少必要的標題或內容。"
-                    assistant_history_content = reply_text
-                    logging.error(reply_text)
-            else:
-                reply_text = ai_response # 如果是 JSON 但不是工具呼叫，直接回覆
-                assistant_history_content = ai_response
-        except json.JSONDecodeError:
-            reply_text = ai_response # 如果不是 JSON，直接回覆
+                    # 如果是 JSON 但不是工具呼叫，直接回覆原始 AI 回應
+                    reply_text = ai_response
+                    assistant_history_content = ai_response
+            except json.JSONDecodeError:
+                logging.error(f"無法解析從 AI 回應中提取的 JSON: {json_string}")
+                reply_text = "抱歉，AI 回應的格式有誤，我暫時無法處理。"
+                assistant_history_content = reply_text
+        else:
+            # 如果 AI 回應不包含 JSON 區塊，則視為一般對話
+            reply_text = ai_response
             assistant_history_content = ai_response
 
     # 更新對話歷史並儲存
