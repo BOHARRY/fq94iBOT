@@ -40,6 +40,13 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get update \
     && apt-get install -y google-chrome-stable --no-install-recommends
 
+# 下載並安裝對應版本的 ChromeDriver
+# 我們不再使用 webdriver-manager，而是在構建時就固定下來
+RUN CHROME_DRIVER_VERSION=$(wget -q -O - "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/114.0.5735.90/linux64/chrome-linux64.zip" | bsdtar -xvf - -O) \
+    && wget -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_DRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
+    && unzip /tmp/chromedriver.zip -d /usr/bin \
+    && rm /tmp/chromedriver.zip
+
 # 複製 requirements.txt 並安裝 Python 依賴
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

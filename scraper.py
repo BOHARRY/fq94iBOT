@@ -47,14 +47,9 @@ class SeleniumScraper:
             chrome_options.add_argument("--window-size=1920,1080")
         chrome_options.add_argument(f'--user-agent={config.USER_AGENT}')
         
-        try:
-            from webdriver_manager.chrome import ChromeDriverManager
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        except ImportError:
-            print("⚠️ 警告: 未安裝 webdriver-manager。請執行 'pip install webdriver-manager' 以自動管理 ChromeDriver。")
-            print("   正在嘗試使用系統路徑中的 chromedriver...")
-            driver = webdriver.Chrome(options=chrome_options)
+        # 在 Docker 環境中，我們已經將 chromedriver 放置在固定路徑，不再需要 webdriver-manager
+        service = Service(executable_path="/usr/bin/chromedriver")
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         
         print("  - WebDriver 設置完成。")
         return driver
