@@ -21,7 +21,7 @@ import config
 
 class SeleniumScraper:
     """
-    一個專門用於處理網站登錄和發文的 Selenium 爬蟲類別。
+    一個專門用於處理網站登錄和發文的 Selenium 爬蟲類別。 
     它封裝了瀏覽器操作、表單填寫、驗證碼識別和智能重試的所有邏輯。
     """
     def __init__(self, headless=config.BROWSER_HEADLESS, api_key=config.OPENAI_API_KEY):
