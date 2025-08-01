@@ -59,4 +59,5 @@ COPY . .
 # 使用 gunicorn 來啟動我們的 Flask 應用 (line_bot_server.py 中的 app 物件)
 # --bind 0.0.0.0:10000: 讓伺服器監聽 Render 提供的端口
 # --timeout 120: 增加超時時間，以應對 Selenium 啟動和運行的耗時
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--timeout", "120", "line_bot_server:app"]
+# --pythonpath /app: 強制 gunicorn 將專案根目錄加入 Python 搜尋路徑，確保能讀取到最新的 config.py
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--timeout", "120", "--pythonpath", "/app", "line_bot_server:app"]
