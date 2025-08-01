@@ -5,15 +5,12 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # 更新套件列表並安裝必要的系統依賴
-# wget 和 unzip 用於下載和解壓縮 ChromeDriver
-# libarchive-tools 提供了 bsdtar 工具
-# grep 用於解析版本號
-# gnupg, libglib2.0-0, etc. 是 Google Chrome 運行的必要依賴
+# jq 是處理 JSON 的強大工具
+# 其他都是 Chrome 運行的必要依賴
 RUN apt-get update && apt-get install -y \
     wget \
     unzip \
-    libarchive-tools \
-    grep \
+    jq \
     gnupg \
     libglib2.0-0 \
     libnss3 \
@@ -45,10 +42,9 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get install -y google-chrome-stable --no-install-recommends
 
 # 下載並安裝對應版本的 ChromeDriver
-# 我們不再使用 webdriver-manager，而是在構建時就固定下來
-# 為了穩定性，我們直接指定一個已知的穩定版本，而不是動態獲取
-RUN CHROMEDRIVER_VERSION="114.0.5735.90" \
-    && wget -O /tmp/chromedriver.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROMEDRIVER_VERSION}/linux64/chromedriver-linux64.zip" \
+# 這是目前最穩健的方法，直接從官方 JSON 端點獲取下載 URL
+RUN CHROMEDRIVER_URL=$(wget -q -O - https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions[] | select(.version | startswith("114.")) | .downloads.chromedriver[] | select(.platform=="linux64") | .url') \
+    && wget -O /tmp/chromedriver.zip "${CHROMEDRIVER_URL}" \
     && unzip /tmp/chromedriver.zip -d /opt/ \
     && mv /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver \
     && rm -rf /opt/chromedriver-linux64 /tmp/chromedriver.zip
