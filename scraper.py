@@ -260,13 +260,13 @@ class SeleniumScraper:
                         logging.error("  - ❌ 錯誤：重試多次後，儲存按鈕仍然無法點擊。")
                         raise  # 重新引發最後的異常
 
-            # 步驟 6: 驗證發文是否成功 (更穩健的策略)
+            # 步驟 6: 驗證發文是否成功 (最終穩健策略)
             logging.info("6. 驗證發文結果...")
             try:
                 # 策略：驗證頁面是否已成功跳轉回文章列表頁
-                # 編輯頁的 URL 包含 'article-edit'，列表頁則不包含
+                # 根據用戶提供的資訊，列表頁的 URL 包含 '#/article?mode=data'
                 self.wait.until(
-                    EC.url_contains("#/article-list")
+                    EC.url_contains("#/article?mode=data")
                 )
                 logging.info("   ✅ URL 已成功跳轉至文章列表！發文確認成功。")
                 self.screenshot_full_page("after_saving_post.png")
