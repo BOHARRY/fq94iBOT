@@ -42,9 +42,8 @@ RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key
     && apt-get install -y google-chrome-stable --no-install-recommends
 
 # 下載並安裝對應版本的 ChromeDriver
-# 這是目前最穩健的方法，直接從官方 JSON 端點獲取下載 URL
-RUN CHROMEDRIVER_URL=$(wget -q -O - https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions[] | select(.version | startswith("114.")) | .downloads.chromedriver[] | select(.platform=="linux64") | .url') \
-    && wget -O /tmp/chromedriver.zip "${CHROMEDRIVER_URL}" \
+# 最終方案：放棄所有動態指令，直接使用一個已知的、完整的下載 URL，確保最高穩定性
+RUN wget -O /tmp/chromedriver.zip "https://storage.googleapis.com/chrome-for-testing-public/124.0.6367.207/linux64/chromedriver-linux64.zip" \
     && unzip /tmp/chromedriver.zip -d /opt/ \
     && mv /opt/chromedriver-linux64/chromedriver /usr/bin/chromedriver \
     && rm -rf /opt/chromedriver-linux64 /tmp/chromedriver.zip
