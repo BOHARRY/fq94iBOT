@@ -260,19 +260,21 @@ class SeleniumScraper:
                         logging.error("  - ❌ 錯誤：重試多次後，儲存按鈕仍然無法點擊。")
                         raise  # 重新引發最後的異常
 
-            # 步驟 6: 驗證發文是否成功
+            # 步驟 6: 驗證發文是否成功 (更穩健的策略)
             logging.info("6. 驗證發文結果...")
             try:
-                # 等待成功訊息出現
+                # 策略：驗證頁面是否已成功跳轉回文章列表頁
+                # 編輯頁的 URL 包含 'article-edit'，列表頁則不包含
                 self.wait.until(
-                    EC.visibility_of_element_located(config.POST_SUCCESS_MESSAGE)
+                    EC.url_contains("#/article-list")
                 )
-                logging.info("   ✅ 偵測到成功訊息！發文確認成功。")
+                logging.info("   ✅ URL 已成功跳轉至文章列表！發文確認成功。")
                 self.screenshot_full_page("after_saving_post.png")
                 return True
             except TimeoutException:
-                # 如果在等待時間內沒有出現成功訊息，則判定為失敗
-                logging.error("   ❌ 未能偵測到成功訊息，發文可能失敗。")
+                # 如果在等待時間內 URL 沒有改變，則判定為失敗
+                logging.error("   ❌ 頁面未在預期時間內跳轉，發文可能失敗。")
+                logging.error(f"   - 當前 URL: {self.driver.current_url}")
                 self.screenshot_full_page("post_error_page.png")
                 return False
 

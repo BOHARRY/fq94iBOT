@@ -127,7 +127,7 @@ def execute_scraper(user_id, title, content):
                             )
                         ],
                         notificationDisabled=False,
-                        customAggregationUnits='bot'
+                        customAggregationUnits=['bot']
                     )
                 )
         except Exception as e:
