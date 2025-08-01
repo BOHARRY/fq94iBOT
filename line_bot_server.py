@@ -10,6 +10,7 @@ from linebot.v3.messaging import (
     ApiClient,
     MessagingApi,
     ReplyMessageRequest,
+    PushMessageRequest,
     TextMessage
 )
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -59,6 +60,21 @@ def callback():
 def handle_message(event):
     """處理文字訊息事件"""
     text = event.message.text.strip()
+    user_id = event.source.user_id
+
+    def send_push_message(message_text):
+        """一個用來發送 Push Message 的輔助函式"""
+        try:
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                line_bot_api.push_message(
+                    PushMessageRequest(
+                        to=user_id,
+                        messages=[TextMessage(text=message_text)]
+                    )
+                )
+        except Exception as e:
+            logging.error(f"發送 Push Message 失敗: {e}", exc_info=True)
     
     # 檢查是否為發文指令
     if text.startswith("發文"):
@@ -87,25 +103,24 @@ def handle_message(event):
             try:
                 scraper = SeleniumScraper()
                 login_ok = scraper.login_process()
+                
                 if login_ok:
+                    send_push_message("✅ 登入成功！正準備發布文章...")
                     post_ok = scraper.post_new_article(title=title, content=content)
-                    result_message = "🎉 恭喜！已成功自動發布新文章！" if post_ok else "😭 遺憾！文章發布流程失敗。"
+                    if post_ok:
+                        send_push_message("🎉 恭喜！已成功自動發布新文章！")
+                    else:
+                        send_push_message("😭 遺憾！文章發布流程失敗。請查看 Render 日誌以獲取詳細資訊。")
                 else:
-                    result_message = "❌ 登錄失敗，無法發布文章。"
+                    send_push_message("❌ 登錄失敗，無法發布文章。請查看 Render 日誌以獲取詳細資訊。")
+
             except Exception as e:
-                result_message = f"💥 程序發生未預期的致命錯誤: {e}"
+                error_message = f"💥 程序發生未預期的致命錯誤: {e}"
+                logging.error(error_message, exc_info=True)
+                send_push_message(error_message)
             finally:
                 if scraper:
                     scraper.close()
-            
-            # --- 推送最終結果 ---
-            # 注意：因為 reply_token 只能使用一次，我們需要用 Push API 來傳送最終結果
-            # 這裡為了簡化，我們暫時只在控制台打印結果。
-            # 若要推送，需要用戶的 User ID (event.source.user_id) 和 PushMessage API。
-            logging.info("="*50)
-            logging.info(f"最終執行結果: {result_message}")
-            logging.info("="*50)
-
 
         except (IndexError, ValueError) as e:
             reply_text = f"指令格式錯誤！\n請使用以下格式：\n發文 標題：[您的標題] 內容：[您的內容]\n\n錯誤詳情: {e}"
