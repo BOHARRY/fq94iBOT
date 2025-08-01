@@ -21,10 +21,12 @@ from scraper import SeleniumScraper
 app = Flask(__name__)
 
 # LINE Bot 設定
-if not config.LINE_CHANNEL_ACCESS_TOKEN or config.LINE_CHANNEL_ACCESS_TOKEN == "YOUR_CHANNEL_ACCESS_TOKEN":
-    raise ValueError("錯誤：請在 config.py 中設定您的 LINE_CHANNEL_ACCESS_TOKEN")
+# 在雲端環境中，這些值會從環境變數讀取
+# 在本地測試時，如果 config.py 中沒有填寫，則會觸發錯誤
+if not config.LINE_CHANNEL_ACCESS_TOKEN or "YOUR_CHANNEL_ACCESS_TOKEN" in config.LINE_CHANNEL_ACCESS_TOKEN:
+    app.logger.warning("LINE_CHANNEL_ACCESS_TOKEN 未設定或為預設值。")
 if not config.LINE_CHANNEL_SECRET:
-    raise ValueError("錯誤：請在 config.py 中設定您的 LINE_CHANNEL_SECRET")
+    app.logger.warning("LINE_CHANNEL_SECRET 未設定。")
 
 configuration = Configuration(access_token=config.LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(config.LINE_CHANNEL_SECRET)

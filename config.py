@@ -1,5 +1,6 @@
 # config.py (Corrected)
 
+import os
 from selenium.webdriver.common.by import By
 
 """
@@ -8,13 +9,13 @@ from selenium.webdriver.common.by import By
 優先修改此文件，而不是去動爬蟲的核心邏輯。
 """
 
-# --- 登錄資訊 ---
+# --- 登錄資訊 (優先從環境變數讀取) ---
 LOGIN_URL = "https://www.fq94i.com/webtech"
-USERNAME = "jinny0831"
-PASSWORD = "uCvMhAK6q"
+USERNAME = os.environ.get("USERNAME", "jinny0831")
+PASSWORD = os.environ.get("PASSWORD", "uCvMhAK6q")
 
-# --- OpenAI API ---
-OPENAI_API_KEY = "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"
+# --- OpenAI API (優先從環境變數讀取) ---
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "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")
 OPENAI_MODELS_TO_TRY = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"]
 
 # --- 爬蟲行為設定 ---
@@ -50,9 +51,9 @@ USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 # --- 文章發布設定 ---
 # ==============================================================================
 
-# --- LINE Bot 設定 ---
-LINE_CHANNEL_SECRET = "781aaf0501ef15b2a5baf0382f9cccea"
-LINE_CHANNEL_ACCESS_TOKEN = "FlUfHAVLKA2Q5n6Tac8H14vLm1pV/vw/NSJMVwzaLUpbIPOJ6zjaJrF+GQEeZTloMBqtQ+zIqSu9D4LKo/H9gwjQ9gLhUnkDvyWKoDEoqhpoK9PvLegyjygGcHz4PqG0v+EykJ/GcKzoAK5vgt6MfQdB04t89/1O/w1cDnyilFU=" # 請手動填入您的 Channel Access Token
+# --- LINE Bot 設定 (優先從環境變數讀取) ---
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "781aaf0501ef15b2a5baf0382f9cccea")
+LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN", "FlUfHAVLKA2Q5n6Tac8H14vLm1pV/vw/NSJMVwzaLUpbIPOJ6zjaJrF+GQEeZTloMBqtQ+zIqSu9D4LKo/H9gwjQ9gLhUnkDvyWKoDEoqhpoK9PvLegyjygGcHz4PqG0v+EykJ/GcKzoAK5vgt6MfQdB04t89/1O/w1cDnyilFU=")
 
 # --- 發布內容 (此部分未來將由 LINE Bot 動態提供) ---
 # POST_TITLE = "hello! world!"
