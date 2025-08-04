@@ -38,6 +38,24 @@
 
 ---
 
+## 核心功能
+
+本專案不僅僅是一個自動化腳本，而是一個整合了多項先進技術的智慧內容創作與發布平台。
+
+### AI 驅動的圖文混合發布 (最新功能)
+
+這是本專案最核心的功能亮點。我們實現了一個完全由 AI 驅動的、能夠處理非線性互動的圖文內容生成流程：
+
+1.  **靈活的圖片上傳**: 使用者可以在對話的**任何時間點**，傳送**任意數量**的圖片。
+2.  **自動化雲端儲存**: `line_bot_server.py` 會自動接收這些圖片，並將它們上傳至穩定可靠的 **Cloudinary** 雲端圖片服務，獲取公開的圖片 URL。
+3.  **AI 上下文理解**: 圖片的 URL 會被當作一個「事實陳述」注入到使用者的對話歷史中。AI 助理被賦予了理解這些「事實」的能力。
+4.  **動態 HTML 生成**: 當使用者最終確認發文時，AI 會回顧整個包含文字和圖片 URL 的對話歷史，動態生成一段包含 `<img>` 標籤的**完整 HTML 原始碼**。
+5.  **原始碼模式注入**: `scraper.py` 爬蟲經過升級，能夠自動點擊網站後台 CKEditor 的「原始碼」按鈕，並將 AI 生成的 HTML 內容精準地貼入，從而實現圖文並茂的文章發布。
+
+這個設計的精妙之處在於，我們將複雜的「狀態管理」（例如使用者傳了幾張圖？什麼時候傳的？）完全交給了 AI 的上下文理解能力，使得程式碼本身極其簡潔，同時又能應對千變萬化的使用者互動。
+
+---
+
 ## 史詩級的除錯之旅
 
 我們的成功並非一蹴可幾，而是經歷了一系列系統性的問題排查與策略演進。以下是我們解決這個頑固問題的完整歷程：
@@ -116,6 +134,9 @@
         *   `OPENAI_API_KEY`: 您的 OpenAI 金鑰
         *   `LINE_CHANNEL_SECRET`: 您的 LINE Channel Secret
         *   `LINE_CHANNEL_ACCESS_TOKEN`: 您的 LINE Channel Access Token
+        *   `CLOUDINARY_CLOUD_NAME`: **(新功能所需)** 您的 Cloudinary Cloud Name
+        *   `CLOUDINARY_API_KEY`: **(新功能所需)** 您的 Cloudinary API Key
+        *   `CLOUDINARY_API_SECRET`: **(新功能所需)** 您的 Cloudinary API Secret
         *   `PYTHON_VERSION`: `3.11`
 4.  **設定 Webhook**:
     *   部署成功後，Render 會提供一個永久的 `.onrender.com` 網址。
