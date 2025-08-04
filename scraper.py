@@ -228,16 +228,8 @@ class SeleniumScraper:
                 source_button = self.wait.until(EC.element_to_be_clickable(config.CKEDITOR_SOURCE_BUTTON))
                 source_button.click()
                 logging.info("     - 已點擊「原始碼」按鈕。")
-                time.sleep(3) # 遵循建議，等待渲染
-
-                # --- DEBUG: 獲取原始碼模式下的 HTML 結構 ---
-                try:
-                    editor_area = self.driver.find_element(By.CSS_SELECTOR, "div.cke_contents")
-                    editor_html = editor_area.get_attribute('innerHTML')
-                    logging.info(f"--- CKEDITOR HTML START ---\n{editor_html}\n--- CKEDITOR HTML END ---")
-                except Exception as e:
-                    logging.error(f"無法獲取編輯器區域的 HTML: {e}")
-                # --- END DEBUG ---
+                # 增加等待時間以應對前端渲染延遲
+                time.sleep(5)
 
                 # b. 等待並在 textarea 中輸入 HTML
                 source_textarea = self.wait.until(EC.visibility_of_element_located(config.CKEDITOR_SOURCE_TEXTAREA))
