@@ -216,16 +216,42 @@ class SeleniumScraper:
             logging.info("   ✅ 已點擊 '新增' 按鈕。")
             time.sleep(1) # 等待一下讓編輯器 iframe 載入
 
-            # 步驟 4: 處理富文本編輯器 (CKEditor)
-            logging.info(f"4. 在編輯器中輸入內容: '{content}'")
-            self.wait.until(
-                EC.frame_to_be_available_and_switch_to_it(config.CKEDITOR_IFRAME)
-            )
-            editor_body = self.wait.until(
-                EC.element_to_be_clickable(config.CKEDITOR_BODY)
-            )
-            editor_body.send_keys(content)
-            self.driver.switch_to.default_content()
+            # 步驟 4: 處理富文本編輯器 (CKEditor)，支援 HTML 和純文字
+            logging.info("4. 正在處理文章內容...")
+
+            # 檢查內容是否為 HTML (一個簡單的檢查)
+            is_html_content = content.strip().startswith('<') and content.strip().endswith('>')
+
+            if is_html_content:
+                logging.info("   - 偵測到 HTML 內容，切換至原始碼模式...")
+                # a. 點擊「原始碼」按鈕
+                source_button = self.wait.until(EC.element_to_be_clickable(config.CKEDITOR_SOURCE_BUTTON))
+                source_button.click()
+                logging.info("     - 已點擊「原始碼」按鈕。")
+                time.sleep(3) # 遵循建議，等待渲染
+
+                # b. 等待並在 textarea 中輸入 HTML
+                source_textarea = self.wait.until(EC.visibility_of_element_located(config.CKEDITOR_SOURCE_TEXTAREA))
+                source_textarea.send_keys(content)
+                logging.info("     - 已將 HTML 內容貼上。")
+                time.sleep(3) # 遵循建議，等待渲染
+
+                # c. 再次點擊「原始碼」按鈕以切換回來
+                source_button.click()
+                logging.info("     - 已切換回視覺化模式。")
+                time.sleep(3) # 遵循建議，等待最終渲染
+            else:
+                logging.info("   - 偵測到純文字內容，使用標準模式輸入...")
+                # 標準輸入流程
+                self.wait.until(
+                    EC.frame_to_be_available_and_switch_to_it(config.CKEDITOR_IFRAME)
+                )
+                editor_body = self.wait.until(
+                    EC.element_to_be_clickable(config.CKEDITOR_BODY)
+                )
+                editor_body.send_keys(content)
+                self.driver.switch_to.default_content()
+            
             logging.info("   ✅ 內容輸入完成。")
 
             # 新增步驟: 強制同步 CKEditor 內容到其對應的 textarea

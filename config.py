@@ -47,6 +47,11 @@ LOGIN_ERROR_KEYWORDS = [
 # --- 瀏覽器設定 ---
 USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
 
+# --- Cloudinary API 設定 (優先從環境變數讀取) ---
+CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "YOUR_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "YOUR_API_KEY")
+CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "YOUR_API_SECRET")
+
 # ==============================================================================
 # --- 文章發布設定 ---
 # ==============================================================================
@@ -80,6 +85,12 @@ CKEDITOR_IFRAME = (By.CSS_SELECTOR, "iframe.cke_wysiwyg_frame")
 
 # CKEditor 內容編輯區 (在 iframe 內)
 CKEDITOR_BODY = (By.TAG_NAME, "body")
+
+# CKEditor "原始碼" 按鈕
+CKEDITOR_SOURCE_BUTTON = (By.CSS_SELECTOR, "a.cke_button__source[title='原始碼']")
+
+# CKEditor "原始碼" 輸入區 (是一個 textarea)
+CKEDITOR_SOURCE_TEXTAREA = (By.CSS_SELECTOR, "textarea.cke_source")
 
 # 儲存按鈕 (根據用戶提供的 HTML 進行精準定位，鎖定在底部固定欄位)
 SAVE_POST_BUTTON = (By.CSS_SELECTOR, "div#fixed-bottom button.btn.send")

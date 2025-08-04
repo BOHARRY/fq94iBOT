@@ -5,6 +5,8 @@ import logging
 import json
 import re
 import threading
+import cloudinary
+import cloudinary.uploader
 from flask import Flask, request, abort
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -12,11 +14,12 @@ from linebot.v3.messaging import (
     Configuration,
     ApiClient,
     MessagingApi,
+    MessagingApiBlob,
     ReplyMessageRequest,
     PushMessageRequest,
     TextMessage
 )
-from linebot.v3.webhooks import MessageEvent, TextMessageContent
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
 from openai import OpenAI
 from openai.types.chat import (
     ChatCompletionMessageParam,
@@ -41,6 +44,14 @@ handler = WebhookHandler(config.LINE_CHANNEL_SECRET)
 # OpenAI Client
 openai_client = OpenAI(api_key=config.OPENAI_API_KEY)
 
+# Cloudinary 設定
+cloudinary.config(
+  cloud_name = config.CLOUDINARY_CLOUD_NAME,
+  api_key = config.CLOUDINARY_API_KEY,
+  api_secret = config.CLOUDINARY_API_SECRET,
+  secure = True
+)
+
 # 對話歷史資料庫
 CONVERSATION_HISTORY_FILE = "conversation_history.json"
 
@@ -60,30 +71,72 @@ def save_history(history):
     with open(CONVERSATION_HISTORY_FILE, 'w', encoding='utf-8') as f:
         json.dump(history, f, ensure_ascii=False, indent=4)
 
+def upload_to_cloudinary(image_bytes):
+    """將圖片上傳到 Cloudinary 並返回安全的 URL"""
+    try:
+        # 使用 Cloudinary SDK 上傳圖片
+        # SDK 會自動處理授權和請求細節
+        upload_result = cloudinary.uploader.upload(image_bytes)
+        
+        # 從回傳結果中獲取安全的 https URL
+        secure_url = upload_result.get('secure_url')
+        if secure_url:
+            logging.info(f"🎉 圖片成功上傳到 Cloudinary: {secure_url}")
+            return secure_url
+        else:
+            logging.error(f"❌ Cloudinary API 回傳結果中未找到 secure_url: {upload_result}")
+            return None
+    except Exception as e:
+        logging.error(f"💥 上傳到 Cloudinary 時發生錯誤: {e}", exc_info=True)
+        return None
+
 def get_ai_response(user_id, history):
     """獲取 AI 的回應或工具呼叫"""
     system_prompt = """
-    你是一個名為「五餅二魚」的智慧發文助理。你的任務是與使用者自然地對話，幫助他們構思、撰寫並最終確認一篇要發布到網站上的文章。
+    你是一個名為「五餅二魚」的智慧圖文發文助理。你的核心任務是與使用者自然地對話，幫助他們構思、撰寫並最終確認一篇包含文字和圖片的、將要發布到網站上的文章。
 
-    你的能力與規則如下：
+    ### 你的能力與規則：
+
     1.  **識別意圖**: 從對話中，判斷使用者是想「開始寫新文章」、「修改草稿」，還是「確認發文」。
-    2.  **生成草稿**: 當使用者提出主題時，為他生成一篇文情並茂的草稿。
-    3.  **理解修改指令**: 當使用者提出修改意見時（例如「把標題改得活潑一點」、「內容第三段可以多加一些細節」），你必須理解並生成一篇修改後的新草稿。
-    4.  **最終確認**: 在你認為草稿已經完美時，要主動詢問使用者：「請問這份最終的稿件可以直接發布了嗎？」
-    5.  **觸發工具 (Function Calling)**: 當且僅當使用者明確表示「確認發文」、「可以了，就這樣發吧」或類似的最終同意時，你必須呼叫一個名為 `execute_post_article` 的工具，並將最終確認的**標題**和**內容**作為參數傳遞給它。在其他任何情況下，你都只能與使用者對話。
+    2.  **識別圖片上下文**: 當你在對話歷史中看到 `[系統訊息：使用者已成功上傳一張圖片，網址為：...]` 這樣的訊息時，你必須知道這就是接下來要發布文章的核心圖片。如果看到多條此類訊息，代表這是一篇多圖文章。
+    3.  **生成草稿**: 當使用者提出主題時，為他生成一篇文情並茂的草稿。如果上下文中已有圖片，你的草稿需要自然地將圖片融合進去。
+    4.  **理解修改指令**: 當使用者提出修改意見時（例如「把標題改得活潑一點」、「在第二段後面加上剛才那張圖」），你必須理解並生成一篇修改後的新草稿。
+    5.  **最終確認**: 在你認為稿件已經完美時，要主動詢問使用者：「請問這份包含 O 張圖片的稿件，可以直接發布了嗎？」（請自行計算圖片數量）。
 
-    輸出格式：
+    ### 關於工具呼叫 (Function Calling)：
+
+    **觸發時機**: 當且僅當使用者明確表示「確認發文」、「可以了，就這樣發吧」或類似的最終同意時，你才可以使用 `execute_post_article` 工具。
+
+    **輸出格式**:
     *   如果需要繼續對話，請直接輸出你的回覆。
-    *   如果決定要觸發工具，請嚴格按照以下 JSON 格式輸出：
+    *   如果決定要觸發工具，請**嚴格**按照以下 JSON 格式輸出：
         ```json
         {
           "tool_call": "execute_post_article",
           "parameters": {
-            "title": "最終的標題",
-            "content": "最終的內容"
+            "title": "最終的純文字標題",
+            "content": "最終的、包含 HTML 標籤的完整文章內容"
           }
         }
         ```
+
+    ### 關於 `content` 欄位的 HTML 生成規則：
+
+    1.  **必須是 HTML**: `content` 的值**必須**是一段 HTML 字串。
+    2.  **處理圖片**:
+        *   如果上下文中**有**圖片網址，生成的 HTML **必須**包含對應的 `<img src="..." style="max-width:100%;">` 標籤。你需要根據對話，決定將圖片放在文章的哪個位置。
+        *   如果上下文中**沒有**任何圖片網址，生成的 HTML 則**不應該**包含 `<img>` 標籤。
+    3.  **基本排版**: 你可以使用 `<p>`, `<strong>`, `<ul>`, `<li>` 等基本標籤來美化文章排版。
+
+    **HTML 範例 (一篇包含兩張圖片的文章):**
+    ```html
+    <p>這是一個關於寵物倉鼠的有趣故事。</p>
+    <p>首先，我們來看看小倉鼠「皮蛋」可愛的模樣。</p>
+    <img src="https://i.imgur.com/hamster1.png" alt="可愛的倉鼠皮蛋" style="max-width:100%;">
+    <p>皮蛋最喜歡在牠的滾輪上奔跑，就像下面這張圖一樣，充滿活力！</p>
+    <img src="https://i.imgur.com/hamster2.png" alt="正在跑滾輪的皮蛋" style="max-width:100%;">
+    <p>總而言之，養寵物能為生活帶來許多樂趣。</p>
+    ```
     """
     
     messages: list[ChatCompletionMessageParam] = [{"role": "system", "content": system_prompt}]
@@ -112,44 +165,23 @@ def get_ai_response(user_id, history):
 
 def execute_scraper(user_id, title, content):
     """在背景執行爬蟲並回報結果"""
-    def send_push_message(message_text):
-        try:
-            with ApiClient(configuration) as api_client:
-                line_bot_api = MessagingApi(api_client)
-                line_bot_api.push_message(
-                    PushMessageRequest(
-                        to=user_id,
-                        messages=[
-                            TextMessage(
-                                text=message_text,
-                                quickReply=None,
-                                quoteToken=None
-                            )
-                        ],
-                        notificationDisabled=False,
-                        customAggregationUnits=['bot']
-                    )
-                )
-        except Exception as e:
-            logging.error(f"發送 Push Message 失敗: {e}", exc_info=True)
-
     scraper = None
     try:
         scraper = SeleniumScraper()
         login_ok = scraper.login_process()
         if login_ok:
-            send_push_message("✅ 登入成功！正準備發布文章...")
+            send_push_message(user_id, "✅ 登入成功！正準備發布文章...")
             post_ok = scraper.post_new_article(title=title, content=content)
             if post_ok:
-                send_push_message("🎉 恭喜！已成功自動發布新文章！")
+                send_push_message(user_id, "🎉 恭喜！已成功自動發布新文章！")
             else:
-                send_push_message("😭 遺憾！文章發布流程失敗。")
+                send_push_message(user_id, "😭 遺憾！文章發布流程失敗。")
         else:
-            send_push_message("❌ 登錄失敗，無法發布文章。")
+            send_push_message(user_id, "❌ 登錄失敗，無法發布文章。")
     except Exception as e:
         error_message = f"💥 程序發生未預期的致命錯誤: {e}"
         logging.error(error_message, exc_info=True)
-        send_push_message(error_message)
+        send_push_message(user_id, error_message)
     finally:
         if scraper:
             scraper.close()
@@ -251,6 +283,89 @@ def handle_message(event):
                 notificationDisabled=False
             )
         )
+
+@handler.add(MessageEvent, message=ImageMessageContent)
+def handle_image_message(event):
+    """處理使用者傳送的圖片訊息"""
+    user_id = event.source.user_id
+    
+    # 立即回覆，告知使用者系統正在處理
+    with ApiClient(configuration) as api_client:
+        line_bot_api = MessagingApi(api_client)
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                replyToken=event.reply_token,
+                messages=[
+                    TextMessage(
+                        text="收到圖片，正在上傳中，請稍候... 🖼️",
+                        quickReply=None,
+                        quoteToken=None
+                    )
+                ],
+                notificationDisabled=False
+            )
+        )
+
+    # 在背景執行緒中處理圖片下載與上傳，避免阻塞
+    def process_image_in_background():
+        try:
+            # 1. 下載圖片
+            with ApiClient(configuration) as api_client:
+                line_bot_blob_api = MessagingApiBlob(api_client)
+                # get_message_content 直接回傳一個 bytearray
+                image_bytes = line_bot_blob_api.get_message_content(event.message.id)
+
+            # 2. 上傳到 Cloudinary
+            image_url = upload_to_cloudinary(image_bytes)
+
+            # 3. 處理結果
+            if image_url:
+                # 將成功結果注入對話歷史
+                history = load_history()
+                if user_id not in history:
+                    history[user_id] = []
+                
+                system_message = f"[系統訊息：使用者已成功上傳一張圖片，網址為 {image_url}]"
+                history[user_id].append({"role": "user", "content": system_message})
+                save_history(history)
+                
+                # 推播訊息，引導使用者繼續
+                send_push_message(user_id, "✅ 圖片上傳成功！請現在告訴我這篇文章的標題和內容，或者繼續傳送更多圖片。")
+            else:
+                # 推播失敗訊息
+                send_push_message(user_id, "❌ 抱歉，圖片上傳失敗，請稍後再試一次。")
+
+        except Exception as e:
+            logging.error(f"處理圖片時發生錯誤: {e}", exc_info=True)
+            send_push_message(user_id, "❌ 處理您的圖片時發生未預期的錯誤。")
+
+    # 啟動背景執行緒
+    image_thread = threading.Thread(target=process_image_in_background)
+    image_thread.start()
+
+
+def send_push_message(user_id, message_text):
+    """一個獨立的 Push Message 函式，方便在背景執行緒中呼叫"""
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.push_message(
+                PushMessageRequest(
+                    to=user_id,
+                    messages=[
+                        TextMessage(
+                            text=message_text,
+                            quickReply=None,
+                            quoteToken=None
+                        )
+                    ],
+                    notificationDisabled=False,
+                    customAggregationUnits=['bot']
+                )
+            )
+    except Exception as e:
+        logging.error(f"發送 Push Message 失敗: {e}", exc_info=True)
+
 
 # --- 伺服器啟動 ---
 if __name__ == "__main__":
